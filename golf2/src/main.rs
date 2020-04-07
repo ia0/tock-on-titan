@@ -80,6 +80,8 @@ pub struct Golf {
     dcrypto: &'static h1_syscalls::dcrypto::DcryptoDriver<'static>,
     nvcounter: &'static h1_syscalls::nvcounter_syscall::NvCounterSyscall<'static,
         FlashCounter<'static, h1::hil::flash::virtual_flash::FlashUser<'static>>>,
+    opensk: &'static h1_syscalls::opensk_syscall::OpenskSyscall<'static,
+        h1::hil::flash::virtual_flash::FlashUser<'static>>,
     u2f_usb: &'static h1::usb::driver::U2fSyscallDriver<'static>,
     uint_printer: h1_syscalls::debug_syscall::UintPrinter,
     personality: &'static h1_syscalls::personality::PersonalitySyscall<'static>,
@@ -253,6 +255,9 @@ pub unsafe fn reset_handler() {
     let nvcounter_flash = static_init!(h1::hil::flash::virtual_flash::FlashUser<'static>,
                                        h1::hil::flash::virtual_flash::FlashUser::new(flash_mux));
 
+    let opensk_flash = static_init!(h1::hil::flash::virtual_flash::FlashUser<'static>,
+                                    h1::hil::flash::virtual_flash::FlashUser::new(flash_mux));
+
     flash.set_client(flash_mux);
 
     let timer_virtual_alarm = static_init!(VirtualMuxAlarm<'static, Timels>,
@@ -292,6 +297,12 @@ pub unsafe fn reset_handler() {
             FlashCounter<'static, h1::hil::flash::virtual_flash::FlashUser<'static>>>,
         h1_syscalls::nvcounter_syscall::NvCounterSyscall::new(nvcounter, kernel.create_grant(&grant_cap)));
     nvcounter.set_client(nvcounter_syscall);
+
+    let opensk_syscall = static_init!(
+        h1_syscalls::opensk_syscall::OpenskSyscall<'static,
+            h1::hil::flash::virtual_flash::FlashUser<'static>>,
+        h1_syscalls::opensk_syscall::OpenskSyscall::new(opensk_flash, kernel.create_grant(&grant_cap)));
+    opensk_flash.set_client(opensk_syscall);
 
     let u2f = static_init!(
         h1::usb::driver::U2fSyscallDriver<'static>,
@@ -413,6 +424,7 @@ pub unsafe fn reset_handler() {
         aes: aes,
         dcrypto: dcrypto,
         nvcounter: nvcounter_syscall,
+        opensk: opensk_syscall,
         rng: rng,
         u2f_usb: u2f,
         personality: personality,
@@ -455,6 +467,7 @@ impl Platform for Golf {
             h1_syscalls::debug_syscall::DRIVER_NUM     => f(Some(&self.uint_printer)),
             h1_syscalls::digest::DRIVER_NUM            => f(Some(self.digest)),
             h1_syscalls::nvcounter_syscall::DRIVER_NUM => f(Some(self.nvcounter)),
+            h1_syscalls::opensk_syscall::DRIVER_NUM    => f(Some(self.opensk)),
             h1_syscalls::personality::DRIVER_NUM       => f(Some(self.personality)),
             kernel::ipc::DRIVER_NUM                    => f(Some(&self.ipc)),
             _ =>  f(None),
